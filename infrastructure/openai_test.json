@@ -60,7 +60,7 @@
                 "model": {
                     "format": "OpenAI",
                     "name": "[parameters('AzureOpenAIModelName')]",
-                    "version": "0613"
+                    "version": "2024-11-20"
                 }
             },
             "sku": {
