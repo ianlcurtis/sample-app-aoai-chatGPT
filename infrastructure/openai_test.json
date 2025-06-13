@@ -46,7 +46,7 @@
         {
             "type": "Microsoft.CognitiveServices/accounts/deployments",
             "apiVersion": "2023-10-01-preview",
-            "name": "[concat(parameters('AzureOpenAIResourceName'), '/', parameters('AzureOpenAIDeploymentName'))]",
+            "name": "[concat(parameters('AzureOpenAIResourceName'), '/', parameters('AzureOpenAIModelName'))]",
             "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', parameters('AzureOpenAIResourceName'))]"
             ],
