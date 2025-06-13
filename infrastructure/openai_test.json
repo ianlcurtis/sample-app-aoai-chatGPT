@@ -2,14 +2,15 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "AzureOpenAIResource": {
+        "AzureOpenAIResourceName": {
             "type": "string",
             "metadata": {
                 "description": "Name of Azure OpenAI Resource"
             }
         },
-        "AzureOpenAIModel": {
+        "AzureOpenAIDeploymentName": {
             "type": "string",
+            "defaultValue": "gpt-4o",
             "metadata": {
                 "description": "Azure OpenAI Model Deployment Name"
             }
@@ -30,9 +31,9 @@
         }
     },
     "variables": {
-        "openAiResourceName": "[parameters('AzureOpenAIResource')]",
+        "openAiResourceName": "[parameters('AzureOpenAIResourceName')]",
         "embeddingDeploymentName": "[parameters('AzureOpenAIEmbeddingName')]",
-        "embeddingModelName": "text-embedding-ada-002"
+        "embeddingModelName": "[parameters('AzureOpenAIEmbeddingName')]"
     },
     "resources": [
         {
@@ -51,27 +52,8 @@
         },
         {
             "type": "Microsoft.CognitiveServices/accounts/deployments",
-            "apiVersion": "2023-05-01",
-            "name": "[concat(variables('openAiResourceName'), '/', variables('embeddingDeploymentName'))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiResourceName'))]"
-            ],
-            "properties": {
-                "model": {
-                    "format": "OpenAI",
-                    "name": "[variables('embeddingModelName')]",
-                    "version": "2"
-                }
-            },
-            "sku": {
-                "name": "Standard",
-                "capacity": 30
-            }
-        },
-        {
-            "type": "Microsoft.CognitiveServices/accounts/deployments",
-            "apiVersion": "2023-05-01",
-            "name": "[concat(variables('openAiResourceName'), '/', parameters('AzureOpenAIModel'))]",
+            "apiVersion": "2024-12-01-preview",
+            "name": "[concat(variables('openAiResourceName'), '/', parameters('AzureOpenAIDeploymentName'))]",
             "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiResourceName'))]"
             ],
