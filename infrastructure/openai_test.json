@@ -51,25 +51,6 @@
         },
         {
             "type": "Microsoft.CognitiveServices/accounts/deployments",
-            "apiVersion": "2024-12-01-preview",
-            "name": "[concat(variables('openAiResourceName'), '/', parameters('AzureOpenAIModel'))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiResourceName'))]"
-            ],
-            "properties": {
-                "model": {
-                    "format": "OpenAI",
-                    "name": "[parameters('AzureOpenAIModelName')]",
-                    "version": "2024-11-20"
-                }
-            },
-            "sku": {
-                "name": "Standard",
-                "capacity": 30
-            }
-        },
-        {
-            "type": "Microsoft.CognitiveServices/accounts/deployments",
             "apiVersion": "2023-05-01",
             "name": "[concat(variables('openAiResourceName'), '/', variables('embeddingDeploymentName'))]",
             "dependsOn": [
@@ -80,6 +61,25 @@
                     "format": "OpenAI",
                     "name": "[variables('embeddingModelName')]",
                     "version": "2"
+                }
+            },
+            "sku": {
+                "name": "Standard",
+                "capacity": 30
+            }
+        },
+        {
+            "type": "Microsoft.CognitiveServices/accounts/deployments",
+            "apiVersion": "2024-12-01-preview",
+            "name": "[concat(variables('openAiResourceName'), '/', parameters('AzureOpenAIModel'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('openAiResourceName'))]"
+            ],
+            "properties": {
+                "model": {
+                    "format": "OpenAI",
+                    "name": "[parameters('AzureOpenAIModelName')]",
+                    "version": "2024-11-20"
                 }
             },
             "sku": {
