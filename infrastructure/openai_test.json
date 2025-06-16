@@ -23,11 +23,6 @@
             }
         }
     },
-    "variables": {
-        "openAiResourceName": "[parameters('AzureOpenAIResourceName')]",
-        "embeddingDeploymentName": "[parameters('AzureOpenAIEmbeddingName')]",
-        "embeddingModelName": "[parameters('AzureOpenAIEmbeddingName')]"
-    },
     "resources": [
         {
             "type": "Microsoft.CognitiveServices/accounts",
