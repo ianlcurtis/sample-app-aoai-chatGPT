@@ -46,9 +46,27 @@ cat .env | jq -R '. | capture("(?<name>[A-Z_]+)=(?<value>.*)")' | jq -s '.[].slo
 Please see [README_azd.md](./README_azd.md) for detailed instructions.
 
 ### One click Azure deployment
+
+#### Deploy using ARM template (basic deployment)
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fianlcurtis%2Fsample-app-aoai-chatGPT%2Fmain%2Finfrastructure%2Fopenai_test.json)
 
-Click on the Deploy to Azure button and configure your settings in the Azure Portal as described in the [Environment variables](#environment-variables) section.
+Click on the Deploy to Azure button above and configure your settings in the Azure Portal as described in the [Environment variables](#environment-variables) section.
+
+#### Deploy using Bicep (comprehensive deployment)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2Fsample-app-aoai-chatGPT%2Fmain%2Finfra%2Fmain.json)
+
+> **Note:** The Bicep deployment requires the main.bicep file to be compiled to main.json and pushed to your GitHub repository. If you're forking this repo, you'll need to compile the Bicep file and update the URL accordingly. See [BICEP_DEPLOYMENT.md](./BICEP_DEPLOYMENT.md) for detailed instructions.
+
+This deployment uses the Bicep templates in the `/infra` folder to deploy:
+
+- App Service and App Service Plan for hosting the web application
+- Azure OpenAI resources (if not using existing ones)
+- Azure Cognitive Search for search functionality
+- Azure Cosmos DB for chat history
+- Form Recognizer services for document processing
+- All necessary security configurations and permissions
+
+After deployment, you'll need to configure the appropriate settings as described in the [Environment variables](#environment-variables) section.
 
 Please see the [section below](#add-an-identity-provider) for important information about adding authentication to your app.
 
