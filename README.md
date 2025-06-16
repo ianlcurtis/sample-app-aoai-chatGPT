@@ -53,7 +53,7 @@ Please see [README_azd.md](./README_azd.md) for detailed instructions.
 Click on the Deploy to Azure button above and configure your settings in the Azure Portal as described in the [Environment variables](#environment-variables) section.
 
 #### Deploy using Bicep (comprehensive deployment)
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2Fsample-app-aoai-chatGPT%2Fmain%2Finfra%2Fmain.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fianlcurtis%2Fsample-app-aoai-chatGPT%2Fmain%2Finfra%2Fmain.json)
 
 > **Note:** The Bicep deployment requires the main.bicep file to be compiled to main.json and pushed to your GitHub repository. If you're forking this repo, you'll need to compile the Bicep file and update the URL accordingly. See [BICEP_DEPLOYMENT.md](./BICEP_DEPLOYMENT.md) for detailed instructions.
 
