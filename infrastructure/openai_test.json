@@ -2,26 +2,12 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "searchServiceName": {
-      "type": "string"
-    },
-    "location": {
-      "type": "string",
-      "defaultValue": "[resourceGroup().location]"
-    },
-    "sku": {
-      "type": "string",
-      "defaultValue": "standard"
-    },
-    "searchApiKey": {
-      "type": "securestring"
-    },
-    "storageConnectionString": {
-      "type": "securestring"
-    },
-    "blobContainerName": {
-      "type": "string"
-    }
+    "searchServiceName": { "type": "string" },
+    "location": { "type": "string", "defaultValue": "[resourceGroup().location]" },
+    "sku": { "type": "string", "defaultValue": "standard" },
+    "searchApiKey": { "type": "securestring" },
+    "storageConnectionString": { "type": "securestring" },
+    "blobContainerName": { "type": "string" }
   },
   "resources": [
     {
@@ -29,9 +15,7 @@
       "apiVersion": "2020-08-01",
       "name": "[parameters('searchServiceName')]",
       "location": "[parameters('location')]",
-      "sku": {
-        "name": "[parameters('sku')]"
-      },
+      "sku": { "name": "[parameters('sku')]" },
       "properties": {
         "replicaCount": 1,
         "partitionCount": 1,
@@ -41,74 +25,59 @@
     {
       "type": "Microsoft.Resources/deploymentScripts",
       "apiVersion": "2020-10-01",
-      "name": "CreateSearchIndexResources",
+      "name": "CreateSearchResources",
       "location": "[parameters('location')]",
+      "kind": "AzurePowerShell",
       "dependsOn": [
         "[resourceId('Microsoft.Search/searchServices', parameters('searchServiceName'))]"
       ],
-      "kind": "AzurePowerShell",
       "properties": {
         "azPowerShellVersion": "10.4",
         "timeout": "PT10M",
-        "arguments": "",
-        "scriptContent": "[concat('
-          $searchName = \"', parameters('searchServiceName'), '\"
-          $apiKey = \"', parameters('searchApiKey'), '\"
-          $storageConnectionString = \"', parameters('storageConnectionString'), '\"
-          $containerName = \"', parameters('blobContainerName'), '\"
-          $url = \"https://$searchName.search.windows.net\"
-
-          $headers = @{
-            \"Content-Type\" = \"application/json\"
-            \"api-key\" = $apiKey
-          }
-
-          # Data Source
-          $dataSource = @{
-            name = \"blob-ds\"
-            description = \"Blob Data Source\"
-            type = \"azureblob\"
-            credentials = @{ connectionString = $storageConnectionString }
-            container = @{ name = $containerName }
-          } | ConvertTo-Json -Depth 10
-
-          Invoke-RestMethod -Uri \"$url/datasources?api-version=2020-06-30\" -Method Put -Headers $headers -Body $dataSource
-
-          # Index
-          $index = @{
-            name = \"my-index\"
-            fields = @(
-              @{ name=\"id\"; type=\"Edm.String\"; key=$true },
-              @{ name=\"content\"; type=\"Edm.String\" },
-              @{ name=\"metadata_storage_name\"; type=\"Edm.String\" },
-              @{ name=\"metadata_storage_path\"; type=\"Edm.String\" },
-              @{ name=\"metadata_storage_last_modified\"; type=\"Edm.DateTimeOffset\" }
-            )
-          } | ConvertTo-Json -Depth 10
-
-          Invoke-RestMethod -Uri \"$url/indexes/my-index?api-version=2020-06-30\" -Method Put -Headers $headers -Body $index
-
-          # Indexer
-          $indexer = @{
-            name = \"my-indexer\"
-            dataSourceName = \"blob-ds\"
-            targetIndexName = \"my-index\"
-            schedule = @{
-              interval = \"PT1H\"
-            }
-            fieldMappings = @(
-              @{ sourceFieldName = \"metadata_storage_path\"; targetFieldName = \"id\" },
-              @{ sourceFieldName = \"content\"; targetFieldName = \"content\" }
-            )
-          } | ConvertTo-Json -Depth 10
-
-          Invoke-RestMethod -Uri \"$url/indexers/my-indexer?api-version=2020-06-30\" -Method Put -Headers $headers -Body $indexer
-        ')]",
-        "cleanupPreference": "OnSuccess",
         "forceUpdateTag": "[newGuid()]",
-        "identity": {
-          "type": "UserAssigned"
-        }
+        "cleanupPreference": "OnSuccess",
+        "arguments": "",
+        "scriptContent": "[concat(
+          \"$searchName = '\", parameters('searchServiceName'), \"'\\n\",
+          \"$apiKey = '\", parameters('searchApiKey'), \"'\\n\",
+          \"$storageConnectionString = '\", parameters('storageConnectionString'), \"'\\n\",
+          \"$containerName = '\", parameters('blobContainerName'), \"'\\n\",
+          \"$url = \\\"https://$searchName.search.windows.net\\\"\\n\\n\",
+          \"$headers = @{\\\"Content-Type\\\" = \\\"application/json\\\"; \\\"api-key\\\" = $apiKey }\\n\\n\",
+          \"# Data Source\\n\",
+          \"$dataSource = @{\\n\",
+          \"  name = 'blob-ds'\\n\",
+          \"  description = 'Blob Data Source'\\n\",
+          \"  type = 'azureblob'\\n\",
+          \"  credentials = @{ connectionString = $storageConnectionString }\\n\",
+          \"  container = @{ name = $containerName }\\n\",
+          \"} | ConvertTo-Json -Depth 10\\n\",
+          \"Invoke-RestMethod -Uri \\\"$url/datasources?api-version=2020-06-30\\\" -Method Put -Headers $headers -Body $dataSource\\n\\n\",
+          \"# Index\\n\",
+          \"$index = @{\\n\",
+          \"  name = 'my-index'\\n\",
+          \"  fields = @(\\n\",
+          \"    @{ name='id'; type='Edm.String'; key=\$true },\\n\",
+          \"    @{ name='content'; type='Edm.String' },\\n\",
+          \"    @{ name='metadata_storage_name'; type='Edm.String' },\\n\",
+          \"    @{ name='metadata_storage_path'; type='Edm.String' },\\n\",
+          \"    @{ name='metadata_storage_last_modified'; type='Edm.DateTimeOffset' }\\n\",
+          \"  )\\n\",
+          \"} | ConvertTo-Json -Depth 10\\n\",
+          \"Invoke-RestMethod -Uri \\\"$url/indexes/my-index?api-version=2020-06-30\\\" -Method Put -Headers $headers -Body $index\\n\\n\",
+          \"# Indexer\\n\",
+          \"$indexer = @{\\n\",
+          \"  name = 'my-indexer'\\n\",
+          \"  dataSourceName = 'blob-ds'\\n\",
+          \"  targetIndexName = 'my-index'\\n\",
+          \"  schedule = @{ interval = 'PT1H' }\\n\",
+          \"  fieldMappings = @(\\n\",
+          \"    @{ sourceFieldName = 'metadata_storage_path'; targetFieldName = 'id' },\\n\",
+          \"    @{ sourceFieldName = 'content'; targetFieldName = 'content' }\\n\",
+          \"  )\\n\",
+          \"} | ConvertTo-Json -Depth 10\\n\",
+          \"Invoke-RestMethod -Uri \\\"$url/indexers/my-indexer?api-version=2020-06-30\\\" -Method Put -Headers $headers -Body $indexer\\n\"
+        )]"
       }
     }
   ]
