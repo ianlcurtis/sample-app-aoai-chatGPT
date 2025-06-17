@@ -40,9 +40,42 @@
       "metadata": {
         "description": "The name of the search index to create."
       }
+    },
+    "searchIndexerName": {
+      "type": "string",
+      "defaultValue": "gptkbindexer",
+      "metadata": {
+        "description": "The name of the search indexer to create."
+      }
+    },
+    "searchDataSourceName": {
+      "type": "string",
+      "defaultValue": "gptkbdatasource",
+      "metadata": {
+        "description": "The name of the search data source to create."
+      }
     }
   },
   "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[concat('id-', parameters('searchServiceName'))]",
+      "location": "uksouth"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, 'id-deploymentScript')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', concat('id-', parameters('searchServiceName')))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]", // Contributor role
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', concat('id-', parameters('searchServiceName')))).principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
     {
       "type": "Microsoft.Storage/storageAccounts",
       "apiVersion": "2022-09-01",
@@ -115,6 +148,32 @@
         "disableLocalAuth": false,
         "authOptions": {}
       }
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "createSearchResources",
+      "location": "uksouth",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+        "[resourceId('Microsoft.Search/searchServices', parameters('searchServiceName'))]",
+        "[resourceId('Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, 'id-deploymentScript'))]"
+      ],
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', concat('id-', parameters('searchServiceName')))]": {}
+        }
+      },
+      "properties": {
+        "azPowerShellVersion": "7.0",
+        "timeout": "PT30M",
+        "retentionInterval": "PT1H",
+        "cleanupPreference": "OnSuccess",
+        "scriptContent": "param(\n    [Parameter(Mandatory=$true)]\n    [string] $SearchServiceName,\n    [Parameter(Mandatory=$true)]\n    [string] $SearchServiceSku,\n    [Parameter(Mandatory=$true)]\n    [string] $SearchIndexName,\n    [Parameter(Mandatory=$true)]\n    [string] $SearchIndexerName,\n    [Parameter(Mandatory=$true)]\n    [string] $SearchDataSourceName,\n    [Parameter(Mandatory=$true)]\n    [string] $StorageAccountName,\n    [Parameter(Mandatory=$true)]\n    [string] $StorageContainerName,\n    [Parameter(Mandatory=$true)]\n    [string] $ResourceGroupName\n)\n\n# Set error action preference to stop on error\n$ErrorActionPreference = \"Stop\"\n\ntry {\n    # Get the search service admin API key\n    Write-Host \"Getting search service admin API key...\"\n    $searchService = Get-AzResource -ResourceType 'Microsoft.Search/searchServices' -ResourceName $SearchServiceName -ResourceGroupName $ResourceGroupName\n    if (-not $searchService) {\n        throw \"Search service '$SearchServiceName' not found in resource group '$ResourceGroupName'.\"\n    }\n    \n    $adminKeyResponse = Invoke-AzRestMethod -Uri \"https://management.azure.com$($searchService.ResourceId)/listAdminKeys?api-version=2023-11-01\" -Method Post\n    $adminKey = ($adminKeyResponse.Content | ConvertFrom-Json).primaryKey\n    \n    if (-not $adminKey) {\n        throw \"Failed to retrieve admin key for search service '$SearchServiceName'.\"\n    }\n\n    # Get storage account key\n    Write-Host \"Getting storage account key...\"\n    $storageKeys = Get-AzStorageAccountKey -ResourceGroupName $ResourceGroupName -Name $StorageAccountName\n    \n    if (-not $storageKeys -or $storageKeys.Count -eq 0) {\n        throw \"Failed to retrieve keys for storage account '$StorageAccountName'.\"\n    }\n    \n    $storageKey = $storageKeys[0].Value\n\n    # Create data source\n    Write-Host \"Creating data source '$SearchDataSourceName'...\"\n    $dataSourceDefinition = @{\n        name = $SearchDataSourceName\n        type = 'azureblob'\n        credentials = @{\n            connectionString = \"DefaultEndpointsProtocol=https;AccountName=$StorageAccountName;AccountKey=$storageKey;EndpointSuffix=core.windows.net\"\n        }\n        container = @{\n            name = $StorageContainerName\n        }\n    }\n    $dataSourcePayload = $dataSourceDefinition | ConvertTo-Json -Depth 10\n    $dataSourceHeaders = @{\n        'api-key' = $adminKey\n        'Content-Type' = 'application/json'\n    }\n    \n    $dataSourceResponse = Invoke-RestMethod -Uri \"https://$SearchServiceName.search.windows.net/datasources/$SearchDataSourceName`?api-version=2023-11-01\" -Method Put -Headers $dataSourceHeaders -Body $dataSourcePayload\n    Write-Host \"Data source created successfully.\"\n\n    # Create index\n    Write-Host \"Creating index '$SearchIndexName'...\"\n    $indexDefinition = @{\n        name = $SearchIndexName\n        fields = @(\n            @{\n                name = 'id'\n                type = 'Edm.String'\n                key = $true\n                searchable = $false\n            },\n            @{\n                name = 'metadata_storage_name'\n                type = 'Edm.String'\n                searchable = $true\n                filterable = $true\n                sortable = $true\n                facetable = $true\n            },\n            @{\n                name = 'metadata_storage_path'\n                type = 'Edm.String'\n                searchable = $false\n                filterable = $true\n                sortable = $true\n            },\n            @{\n                name = 'metadata_content_type'\n                type = 'Edm.String'\n                searchable = $false\n                filterable = $true\n                sortable = $true\n                facetable = $true\n            },\n            @{\n                name = 'metadata_language'\n                type = 'Edm.String'\n                searchable = $false\n                filterable = $true\n                sortable = $true\n                facetable = $true\n            },\n            @{\n                name = 'metadata_author'\n                type = 'Edm.String'\n                searchable = $true\n                filterable = $true\n                sortable = $true\n                facetable = $true\n            },\n            @{\n                name = 'metadata_last_modified'\n                type = 'Edm.DateTimeOffset'\n                searchable = $false\n                filterable = $true\n                sortable = $true\n                facetable = $false\n            },\n            @{\n                name = 'metadata_creation_date'\n                type = 'Edm.DateTimeOffset'\n                searchable = $false\n                filterable = $true\n                sortable = $true\n                facetable = $false\n            },\n            @{\n                name = 'content'\n                type = 'Edm.String'\n                searchable = $true\n                filterable = $false\n                sortable = $false\n                facetable = $false\n                analyzer = 'standard.lucene'\n            }\n        )\n    }\n    $indexPayload = $indexDefinition | ConvertTo-Json -Depth 10\n    $indexHeaders = @{\n        'api-key' = $adminKey\n        'Content-Type' = 'application/json'\n    }\n    \n    $indexResponse = Invoke-RestMethod -Uri \"https://$SearchServiceName.search.windows.net/indexes/$SearchIndexName`?api-version=2023-11-01\" -Method Put -Headers $indexHeaders -Body $indexPayload\n    Write-Host \"Index created successfully.\"\n\n    # Create indexer\n    Write-Host \"Creating indexer '$SearchIndexerName'...\"\n    $indexerDefinition = @{\n        name = $SearchIndexerName\n        dataSourceName = $SearchDataSourceName\n        targetIndexName = $SearchIndexName\n        schedule = @{\n            interval = 'PT1H'\n        }\n        parameters = @{\n            batchSize = 100\n            maxFailedItems = 10\n            maxFailedItemsPerBatch = 10\n            configuration = @{\n                parsingMode = 'default'\n                indexedFileNameExtensions = '.pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.txt,.html,.htm,.csv,.json,.xml'\n                excludedFileNameExtensions = '.png,.jpg,.jpeg,.gif,.mp3,.mp4,.avi'\n            }\n        }\n        fieldMappings = @(\n            @{\n                sourceFieldName = 'metadata_storage_path'\n                targetFieldName = 'metadata_storage_path'\n                mappingFunction = @{\n                    name = 'base64Encode'\n                }\n            },\n            @{\n                sourceFieldName = 'metadata_storage_name'\n                targetFieldName = 'metadata_storage_name'\n            }\n        )\n        outputFieldMappings = @(\n            @{\n                sourceFieldName = 'content'\n                targetFieldName = 'content'\n            }\n        )\n    }\n    $indexerPayload = $indexerDefinition | ConvertTo-Json -Depth 10\n    $indexerHeaders = @{\n        'api-key' = $adminKey\n        'Content-Type' = 'application/json'\n    }\n    \n    $indexerResponse = Invoke-RestMethod -Uri \"https://$SearchServiceName.search.windows.net/indexers/$SearchIndexerName`?api-version=2023-11-01\" -Method Put -Headers $indexerHeaders -Body $indexerPayload\n    Write-Host \"Indexer created successfully.\"\n\n    # Output the status information\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['searchServiceName'] = $SearchServiceName\n    $DeploymentScriptOutputs['searchIndexName'] = $SearchIndexName\n    $DeploymentScriptOutputs['searchIndexerName'] = $SearchIndexerName\n    $DeploymentScriptOutputs['searchDataSourceName'] = $SearchDataSourceName\n    \n    Write-Host \"Azure Search resources created successfully!\"\n}\ncatch {\n    Write-Error \"An error occurred: $_\"\n    throw\n}\n",
+        "arguments": "[format(' -SearchServiceName {0} -SearchServiceSku {1} -SearchIndexName {2} -SearchIndexerName {3} -SearchDataSourceName {4} -StorageAccountName {5} -StorageContainerName {6} -ResourceGroupName {7}', parameters('searchServiceName'), parameters('searchServiceSku'), parameters('searchIndexName'), parameters('searchIndexerName'), parameters('searchDataSourceName'), parameters('storageAccountName'), 'data', resourceGroup().name)]"
+      }
     }
   ],
   "outputs": {
@@ -153,6 +212,18 @@
     "searchIndexName": {
       "type": "string",
       "value": "[parameters('searchIndexName')]"
+    },
+    "searchIndexerName": {
+      "type": "string",
+      "value": "[parameters('searchIndexerName')]"
+    },
+    "searchDataSourceName": {
+      "type": "string",
+      "value": "[parameters('searchDataSourceName')]"
+    },
+    "searchResourcesSetupResult": {
+      "type": "object",
+      "value": "[reference('createSearchResources').outputs]"
     }
   }
 }
