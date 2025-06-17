@@ -62,7 +62,8 @@
             "apiVersion": "2023-05-01",
             "name": "[concat(parameters('AzureOpenAIResourceName'), '/', parameters('AzureOpenAIEmbeddingName'))]",
             "dependsOn": [
-                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('AzureOpenAIResourceName'))]"
+                "[resourceId('Microsoft.CognitiveServices/accounts', parameters('AzureOpenAIResourceName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts/deployments', parameters('AzureOpenAIResourceName'), parameters('AzureOpenAIModelName'))]"
             ],
             "properties": {
                 "model": {
