@@ -173,20 +173,20 @@ try {
         }
         fieldMappings = @(
             @{
-                sourceFieldName = 'metadata_storage_path'
+                sourceFieldName = '/document/metadata_storage_path'
                 targetFieldName = 'metadata_storage_path'
                 mappingFunction = @{
                     name = 'base64Encode'
                 }
             },
             @{
-                sourceFieldName = 'metadata_storage_name'
+                sourceFieldName = '/document/metadata_storage_name'
                 targetFieldName = 'metadata_storage_name'
             }
         )
         outputFieldMappings = @(
             @{
-                sourceFieldName = 'content'
+                sourceFieldName = '/document/content'
                 targetFieldName = 'content'
             }
         )
