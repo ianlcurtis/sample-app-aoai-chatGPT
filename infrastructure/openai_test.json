@@ -2,83 +2,157 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "searchServiceName": { "type": "string" },
-    "location": { "type": "string", "defaultValue": "[resourceGroup().location]" },
-    "sku": { "type": "string", "defaultValue": "standard" },
-    "searchApiKey": { "type": "securestring" },
-    "storageConnectionString": { "type": "securestring" },
-    "blobContainerName": { "type": "string" }
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "[concat('storage', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Name of the storage account"
+      },
+      "minLength": 3,
+      "maxLength": 24
+    },
+    "searchServiceName": {
+      "type": "string",
+      "defaultValue": "[concat('search', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Name of the Azure Cognitive Search service"
+      },
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "searchServiceSku": {
+      "type": "string",
+      "defaultValue": "standard",
+      "allowedValues": [
+        "free",
+        "basic",
+        "standard",
+        "standard2",
+        "standard3"
+      ],
+      "metadata": {
+        "description": "The SKU of the search service."
+      }
+    },
+    "searchIndexName": {
+      "type": "string",
+      "defaultValue": "gptkbindex",
+      "metadata": {
+        "description": "The name of the search index to create."
+      }
+    }
   },
   "resources": [
     {
-      "type": "Microsoft.Search/searchServices",
-      "apiVersion": "2020-08-01",
-      "name": "[parameters('searchServiceName')]",
-      "location": "[parameters('location')]",
-      "sku": { "name": "[parameters('sku')]" },
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-09-01",
+      "name": "[parameters('storageAccountName')]",
+      "location": "uksouth",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "BlobStorage",
       "properties": {
-        "replicaCount": 1,
-        "partitionCount": 1,
-        "hostingMode": "default"
+        "accessTier": "Hot",
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true,
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": true,
+        "defaultToOAuthAuthentication": false,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Allow",
+          "ipRules": [],
+          "virtualNetworkRules": []
+        }
       }
     },
     {
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "CreateSearchResources",
-      "location": "[parameters('location')]",
-      "kind": "AzurePowerShell",
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2022-09-01",
+      "name": "[concat(parameters('storageAccountName'), '/default')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Search/searchServices', parameters('searchServiceName'))]"
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
       ],
       "properties": {
-        "azPowerShellVersion": "10.4",
-        "timeout": "PT10M",
-        "forceUpdateTag": "[newGuid()]",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "",
-        "scriptContent": "[concat(
-          \"$searchName = '\", parameters('searchServiceName'), \"'\\n\",
-          \"$apiKey = '\", parameters('searchApiKey'), \"'\\n\",
-          \"$storageConnectionString = '\", parameters('storageConnectionString'), \"'\\n\",
-          \"$containerName = '\", parameters('blobContainerName'), \"'\\n\",
-          \"$url = \\\"https://$searchName.search.windows.net\\\"\\n\\n\",
-          \"$headers = @{\\\"Content-Type\\\" = \\\"application/json\\\"; \\\"api-key\\\" = $apiKey }\\n\\n\",
-          \"# Data Source\\n\",
-          \"$dataSource = @{\\n\",
-          \"  name = 'blob-ds'\\n\",
-          \"  description = 'Blob Data Source'\\n\",
-          \"  type = 'azureblob'\\n\",
-          \"  credentials = @{ connectionString = $storageConnectionString }\\n\",
-          \"  container = @{ name = $containerName }\\n\",
-          \"} | ConvertTo-Json -Depth 10\\n\",
-          \"Invoke-RestMethod -Uri \\\"$url/datasources?api-version=2020-06-30\\\" -Method Put -Headers $headers -Body $dataSource\\n\\n\",
-          \"# Index\\n\",
-          \"$index = @{\\n\",
-          \"  name = 'my-index'\\n\",
-          \"  fields = @(\\n\",
-          \"    @{ name='id'; type='Edm.String'; key=\$true },\\n\",
-          \"    @{ name='content'; type='Edm.String' },\\n\",
-          \"    @{ name='metadata_storage_name'; type='Edm.String' },\\n\",
-          \"    @{ name='metadata_storage_path'; type='Edm.String' },\\n\",
-          \"    @{ name='metadata_storage_last_modified'; type='Edm.DateTimeOffset' }\\n\",
-          \"  )\\n\",
-          \"} | ConvertTo-Json -Depth 10\\n\",
-          \"Invoke-RestMethod -Uri \\\"$url/indexes/my-index?api-version=2020-06-30\\\" -Method Put -Headers $headers -Body $index\\n\\n\",
-          \"# Indexer\\n\",
-          \"$indexer = @{\\n\",
-          \"  name = 'my-indexer'\\n\",
-          \"  dataSourceName = 'blob-ds'\\n\",
-          \"  targetIndexName = 'my-index'\\n\",
-          \"  schedule = @{ interval = 'PT1H' }\\n\",
-          \"  fieldMappings = @(\\n\",
-          \"    @{ sourceFieldName = 'metadata_storage_path'; targetFieldName = 'id' },\\n\",
-          \"    @{ sourceFieldName = 'content'; targetFieldName = 'content' }\\n\",
-          \"  )\\n\",
-          \"} | ConvertTo-Json -Depth 10\\n\",
-          \"Invoke-RestMethod -Uri \\\"$url/indexers/my-indexer?api-version=2020-06-30\\\" -Method Put -Headers $headers -Body $indexer\\n\"
-        )]"
+        "cors": {
+          "corsRules": []
+        },
+        "deleteRetentionPolicy": {
+          "enabled": false
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2022-09-01",
+      "name": "[concat(parameters('storageAccountName'), '/default/data')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('storageAccountName'), 'default')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+      ],
+      "properties": {
+        "publicAccess": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Search/searchServices",
+      "apiVersion": "2021-04-01-preview",
+      "name": "[parameters('searchServiceName')]",
+      "location": "uksouth",
+      "sku": {
+        "name": "[parameters('searchServiceSku')]"
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "replicaCount": 1,
+        "partitionCount": 1,
+        "hostingMode": "default",
+        "semanticSearch": "disabled",
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": false,
+        "authOptions": {}
       }
     }
-  ]
+  ],
+  "outputs": {
+    "storageAccountName": {
+      "type": "string",
+      "value": "[parameters('storageAccountName')]"
+    },
+    "storageAccountId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+    },
+    "blobEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))).primaryEndpoints.blob]"
+    },
+    "connectionString": {
+      "type": "string",
+      "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2022-09-01').keys[0].value, ';EndpointSuffix=', environment().suffixes.storage)]"
+    },
+    "searchServiceName": {
+      "type": "string",
+      "value": "[parameters('searchServiceName')]"
+    },
+    "searchServiceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Search/searchServices', parameters('searchServiceName'))]"
+    },
+    "searchEndpoint": {
+      "type": "string",
+      "value": "[concat('https://', parameters('searchServiceName'), '.search.windows.net/')]"
+    },
+    "searchAdminKey": {
+      "type": "string",
+      "value": "[listAdminKeys(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), '2021-04-01-preview').primaryKey]"
+    },
+    "searchIndexName": {
+      "type": "string",
+      "value": "[parameters('searchIndexName')]"
+    }
+  }
 }
