@@ -76,61 +76,7 @@ try {
                 type = 'Edm.String'
                 key = $true
                 searchable = $false
-            },
-            @{
-                name = 'metadata_storage_name'
-                type = 'Edm.String'
-                searchable = $true
-                filterable = $true
-                sortable = $true
-                facetable = $true
-            },
-            @{
-                name = 'metadata_storage_path'
-                type = 'Edm.String'
-                searchable = $false
-                filterable = $true
-                sortable = $true
-            },
-            @{
-                name = 'metadata_content_type'
-                type = 'Edm.String'
-                searchable = $false
-                filterable = $true
-                sortable = $true
-                facetable = $true
-            },
-            @{
-                name = 'metadata_language'
-                type = 'Edm.String'
-                searchable = $false
-                filterable = $true
-                sortable = $true
-                facetable = $true
-            },
-            @{
-                name = 'metadata_author'
-                type = 'Edm.String'
-                searchable = $true
-                filterable = $true
-                sortable = $true
-                facetable = $true
-            },
-            @{
-                name = 'metadata_last_modified'
-                type = 'Edm.DateTimeOffset'
-                searchable = $false
-                filterable = $true
-                sortable = $true
-                facetable = $false
-            },
-            @{
-                name = 'metadata_creation_date'
-                type = 'Edm.DateTimeOffset'
-                searchable = $false
-                filterable = $true
-                sortable = $true
-                facetable = $false
+                retrievable = $true
             },
             @{
                 name = 'content'
@@ -139,9 +85,68 @@ try {
                 filterable = $false
                 sortable = $false
                 facetable = $false
+                retrievable = $true
                 analyzer = 'standard.lucene'
+            },
+            @{
+                name = 'url'
+                type = 'Edm.String'
+                searchable = $false
+                filterable = $true
+                sortable = $true
+                facetable = $false
+                retrievable = $true
+            },
+            @{
+                name = 'filepath'
+                type = 'Edm.String'
+                searchable = $false
+                filterable = $true
+                sortable = $true
+                facetable = $false
+                retrievable = $true
+            },
+            @{
+                name = 'title'
+                type = 'Edm.String'
+                searchable = $true
+                filterable = $true
+                sortable = $true
+                facetable = $true
+                retrievable = $true
+            },
+            @{
+                name = 'meta_json_string'
+                type = 'Edm.String'
+                searchable = $false
+                filterable = $false
+                sortable = $false
+                facetable = $false
+                retrievable = $true
+            },
+            @{
+                name = 'contentVector'
+                type = 'Collection(Edm.Single)'
+                searchable = $true
+                retrievable = $true
+                dimensions = 1536
+                vectorSearchConfiguration = 'my-vector-config'
             }
-        )
+        ),
+        vectorSearch = @{
+            algorithmConfigurations = @(
+                @{
+                    name = 'my-vector-config'
+                    kind = 'hnsw'
+                    parameters = @{
+                        m = 4
+                        efConstruction = 400
+                        efSearch = 500
+                        metric = 'cosine'
+                    }
+                }
+            )
+        }
     }
     $indexPayload = $indexDefinition | ConvertTo-Json -Depth 10
     $indexHeaders = @{
@@ -173,15 +178,23 @@ try {
         }
         fieldMappings = @(
             @{
-                sourceFieldName = '/document/metadata_storage_path'
-                targetFieldName = 'metadata_storage_path'
+                sourceFieldName = 'metadata_storage_path'
+                targetFieldName = 'filepath'
+            },
+            @{
+                sourceFieldName = 'metadata_storage_name'
+                targetFieldName = 'title'
+            },
+            @{
+                sourceFieldName = 'metadata_storage_path'
+                targetFieldName = 'id'
                 mappingFunction = @{
                     name = 'base64Encode'
                 }
             },
             @{
-                sourceFieldName = '/document/metadata_storage_name'
-                targetFieldName = 'metadata_storage_name'
+                sourceFieldName = 'metadata_storage_path'
+                targetFieldName = 'url'
             }
         )
         outputFieldMappings = @(
